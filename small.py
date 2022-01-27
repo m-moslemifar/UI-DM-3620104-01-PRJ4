@@ -10,6 +10,7 @@ from keras.models import Sequential
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense, Embedding, LSTM, SpatialDropout1D, Bidirectional
 import matplotlib.pyplot as plt
+import tensorflow_addons as tfa
 
 t = pd.read_csv('train - small.csv', delimiter='\t', index_col=0)
 v = pd.read_csv('dev - small.csv', delimiter='\t', index_col=0)
@@ -102,7 +103,7 @@ model.add(Embedding(input_dim=vocab_size,
                     input_length=MAX_SEQUENCE_LENGTH,
                     mask_zero=True,
                     trainable=False))
-model.add(LSTM(100))
+model.add(Bidirectional(LSTM(100)))
 model.add(Dense(1, activation='sigmoid'))
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 print(model.summary())
@@ -126,21 +127,23 @@ plt.show()
 
 train_predictions = model.predict(x).tolist()
 validate_predictions = model.predict(val_x).tolist()
-train_predictions = list(map(lambda x: 0 if x[0] < 0.5 else 1, train_predictions))
-validate_predictions = list(map(lambda x: 0 if x[0] < 0.5 else 1, validate_predictions))
-train_standard = train['label_id'].tolist()
-validate_standard = validate['label_id'].tolist()
+train_standard = []
+for i in train['label_id'].tolist():
+    train_standard.append([i])
+validate_standard = []
+for i in validate['label_id'].tolist():
+    validate_standard.append([i])
 
-train_identical = 0
-train_length = min([len(train_predictions), len(train_standard)])
-for i in range(train_length):
-    if train_standard[i] == train_predictions[i]:
-        train_identical += 1
-print('Train dataset predictions similarity to source: ' + str(train_identical / train_length))
+train_metric = tfa.metrics.F1Score(num_classes=1, threshold=0.5)
+train_standard = np.array(train_standard[:6000], np.int64)
+train_predictions = np.array(train_predictions[:6000], np.float64)
+train_metric.update_state(train_standard, train_predictions)
+train_result = train_metric.result()
+print('F1 score of train set predictions: ' + str(train_result.numpy()))
 
-validate_identical = 0
-validate_length = min([len(validate_predictions), len(validate_standard)])
-for i in range(validate_length):
-    if validate_standard[i] == validate_predictions[i]:
-        validate_identical += 1
-print('Validate dataset predictions similarity to source: ' + str(validate_identical / validate_length))
+validate_metric = tfa.metrics.F1Score(num_classes=1, threshold=0.5)
+validate_standard = np.array(validate_standard[:666], np.int64)
+validate_predictions = np.array(validate_predictions[:666], np.float64)
+validate_metric.update_state(validate_standard, validate_predictions)
+validate_result = validate_metric.result()
+print('F1 score of validation set predictions: ' + str(validate_result.numpy()))
