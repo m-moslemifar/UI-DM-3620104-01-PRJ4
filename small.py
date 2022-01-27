@@ -18,9 +18,6 @@ validate = v[['comment', 'label_id']].copy()
 frames = [train, validate]
 data = pd.concat(frames, ignore_index=True)
 
-print(train['label_id'].tolist())
-print(validate['label_id'].tolist())
-
 data['comment'] = data['comment'].apply(lambda x: ' '.join(x.lower() for x in x.split()))
 
 nmz = Normalizer()
@@ -98,8 +95,6 @@ y = set_y[:6000]
 val_x = set_x[6000:]
 val_y = set_y[6000:]
 
-n_labels = 2
-
 model = Sequential()
 model.add(Embedding(input_dim=vocab_size,
                     output_dim=embedding_size,
@@ -107,13 +102,12 @@ model.add(Embedding(input_dim=vocab_size,
                     input_length=MAX_SEQUENCE_LENGTH,
                     mask_zero=True,
                     trainable=False))
-model.add(SpatialDropout1D(0.4))
-model.add(LSTM(100, dropout=0.2, recurrent_dropout=0.2))
-model.add(Dense(n_labels, activation='softmax'))
-model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.add(LSTM(100))
+model.add(Dense(1, activation='sigmoid'))
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 print(model.summary())
 
-history = model.fit(x, y, epochs=5, batch_size=64,
+history = model.fit(x, y, epochs=5, batch_size=32,
                     validation_data=(val_x, val_y), verbose=1)
 
 plt.figure(figsize=(12, 12))
@@ -129,3 +123,24 @@ plt.plot(history.history['val_accuracy'])
 plt.title('Accuracy')
 plt.legend(['train', 'val'], loc='upper left')
 plt.show()
+
+train_predictions = model.predict(x).tolist()
+validate_predictions = model.predict(val_x).tolist()
+train_predictions = list(map(lambda x: 0 if x[0] < 0.5 else 1, train_predictions))
+validate_predictions = list(map(lambda x: 0 if x[0] < 0.5 else 1, validate_predictions))
+train_standard = train['label_id'].tolist()
+validate_standard = validate['label_id'].tolist()
+
+train_identical = 0
+train_length = min([len(train_predictions), len(train_standard)])
+for i in range(train_length):
+    if train_standard[i] == train_predictions[i]:
+        train_identical += 1
+print('Train dataset predictions similarity to source: ' + str(train_identical / train_length))
+
+validate_identical = 0
+validate_length = min([len(validate_predictions), len(validate_standard)])
+for i in range(validate_length):
+    if validate_standard[i] == validate_predictions[i]:
+        validate_identical += 1
+print('Validate dataset predictions similarity to source: ' + str(validate_identical / validate_length))
