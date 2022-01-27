@@ -94,8 +94,6 @@ x = set_x[:56700]
 y = set_y[:56700]
 val_x = set_x[56700:]
 val_y = set_y[56700:]
-print(len(x))
-print(len(val_x))
 
 model = Sequential()
 model.add(Embedding(input_dim=vocab_size,
